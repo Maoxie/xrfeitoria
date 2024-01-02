@@ -175,6 +175,8 @@ class RPCFactory:
                 # otherwise use the current system path
                 additional_paths = sys.path
 
+            import datetime
+            print(f"[_register][{datetime.datetime.now().isoformat()}] {function.__name__=} {code=} {additional_paths=}")
             response = cls.rpc_client.proxy.add_new_callable(function.__name__, '\n'.join(code), additional_paths)
             cls.registered_function_names.append(function.__name__)
             if os.environ.get('RPC_DEBUG'):
@@ -182,9 +184,9 @@ class RPCFactory:
                 logger.debug(f'code:\n{_code}')
                 logger.debug(f'response: {response}')
 
-        except ConnectionRefusedError:
+        except ConnectionRefusedError as e:
             server_name = os.environ.get(f'RPC_SERVER_{cls.rpc_client.port}', cls.rpc_client.port)
-            raise ConnectionRefusedError(f'No connection could be made with "{server_name}"')
+            raise ConnectionRefusedError(f'No connection could be made with "{server_name}"') from e
 
         return code
 
@@ -308,6 +310,7 @@ def remote_call(
             validate_file_is_saved(function)
             validate_key_word_parameters(function, kwargs)
             RPCFactory.setup(port=port, remap_pairs=remap_pairs, default_imports=default_imports)
+            print(f"remote_call @ {port=} {remap_pairs=} {default_imports=} {repr(function)=} {args=}")
             return RPCFactory.run_function_remotely(function, args)
 
         return wrapper

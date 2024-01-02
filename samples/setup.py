@@ -1,3 +1,4 @@
+import argparse
 import json
 import shutil
 from pathlib import Path
@@ -38,28 +39,33 @@ def get_exec(engine: Literal['blender', 'unreal'], exec_from_config: Optional[Pa
     """
     txt = f'Please input the path to the {engine} executable'
 
-    # priority: exec_from_config > system_config (with guess) > ask > install
-    if exec_from_config is not None:
-        engine_path = Path(exec_from_config).resolve().as_posix()
+    # priority: CLI arguments > exec_from_config > system_config (with guess) > ask > install
+    args = parse_arguments()
+    args_exec = args.exec.strip('"').strip("'")
+    if args_exec:
+        path = Path(args_exec).resolve()
     else:
-        try:
-            # system_config, if empty, guess
-            engine_path = get_exec_path(engine=engine, to_ask=False, to_install=False).as_posix()
-        except FileNotFoundError:
-            engine_path = None
-            txt += f' (e.g. {guess_exec_path(engine)})'
-            if engine == 'blender':
-                txt += ', or press [bold]enter[/bold] to install it'
+        if exec_from_config is not None:
+            engine_path = Path(exec_from_config).resolve().as_posix()
+        else:
+            try:
+                # system_config, if empty, guess
+                engine_path = get_exec_path(engine=engine, to_ask=False, to_install=False).as_posix()
+            except FileNotFoundError:
+                engine_path = None
+                txt += f' (e.g. {guess_exec_path(engine)})'
+                if engine == 'blender':
+                    txt += ', or press [bold]enter[/bold] to install it'
 
-    # ask
-    path = Prompt.ask(txt, default=engine_path)
-    if path is not None:
-        path = Path(path.strip('"').strip("'")).resolve()
-    else:
-        if engine == 'unreal':
-            raise FileNotFoundError('Please specify the path to the unreal executable.')
-        # auto install for blender
-        path = get_exec_path(engine=engine, to_ask=False, to_install=True)
+        # ask
+        path = Prompt.ask(txt, default=engine_path)
+        if path is not None:
+            path = Path(path.strip('"').strip("'")).resolve()
+        else:
+            if engine == 'unreal':
+                raise FileNotFoundError('Please specify the path to the unreal executable.')
+            # auto install for blender
+            path = get_exec_path(engine=engine, to_ask=False, to_install=True)
 
     assert path.exists(), f'{engine} path {path.as_posix()} does not exist!'
     return path.as_posix()
@@ -68,15 +74,21 @@ def get_exec(engine: Literal['blender', 'unreal'], exec_from_config: Optional[Pa
 def get_unreal_project(unreal_project: str) -> str:
     """Ask for unreal project path."""
     txt = 'Please input the path to the unreal project'
-    if unreal_project is None:
-        txt += ', or press [bold]enter[/bold] to download a sample project\n' '\[Enter]'
-    unreal_project = Prompt.ask(txt, default=unreal_project)
-    if unreal_project is None:
-        unreal_project_zip = download(url=unreal_sample_url, dst_dir=tmp_dir / 'unreal_project')
-        shutil.unpack_archive(filename=unreal_project_zip, extract_dir=tmp_dir / 'unreal_project')
-        unreal_project_dir = unreal_project_zip.parent / unreal_project_zip.stem
-        unreal_project = next(unreal_project_dir.glob('*.uproject')).as_posix()
-    unreal_project = unreal_project.strip('"').strip("'")
+    args = parse_arguments()
+    args_unreal_project = args.unreal_project.strip('"').strip("'")
+    if args_unreal_project:
+        unreal_project = Path(args_unreal_project).resolve().as_posix()
+    else:
+        if unreal_project is None:
+            txt += ', or press [bold]enter[/bold] to download a sample project\n' '\[Enter]'
+        unreal_project = Prompt.ask(txt, default=unreal_project)
+        if unreal_project is None:
+            unreal_project_zip = download(url=unreal_sample_url, dst_dir=tmp_dir / 'unreal_project')
+            shutil.unpack_archive(filename=unreal_project_zip, extract_dir=tmp_dir / 'unreal_project')
+            unreal_project_dir = unreal_project_zip.parent / unreal_project_zip.stem
+            unreal_project = next(unreal_project_dir.glob('*.uproject')).as_posix()
+        unreal_project = unreal_project.strip('"').strip("'")
+
     if not Path(unreal_project).exists():
         config_file = Path(__file__).parent / 'config.py'
         logger.error(
@@ -88,6 +100,14 @@ def get_unreal_project(unreal_project: str) -> str:
     return unreal_project
 
 
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Setup the environment for the samples.')
+    parser.add_argument('--engine', type=str, default=None, choices=['blender', 'unreal'])
+    parser.add_argument('--exec', type=str, default="")
+    parser.add_argument('--unreal_project', type=str, default="")
+    return parser.parse_args()
+
+
 def main():
     try:
         from .config import blender_exec, unreal_exec, unreal_project
@@ -95,7 +115,8 @@ def main():
         blender_exec = unreal_exec = unreal_project = None
 
     Logger.setup_logging()
-    engine = Prompt.ask('Which engine do you want to use?', choices=['blender', 'unreal'], default='blender')
+    args = parse_arguments()
+    engine = args.engine if args.engine else Prompt.ask('Which engine do you want to use?', choices=['blender', 'unreal'], default='blender')
     if engine == 'blender':
         blender_exec = get_exec('blender', exec_from_config=blender_exec)
         Config.update(engine=engine, exec_path=blender_exec)

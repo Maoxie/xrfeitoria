@@ -101,7 +101,7 @@ class RPCRunner(ABC):
                 '`dev_plugin=True` would force `replace_plugin=True`, replacing the plugin with local source code'
             )
         # Try to reuse existing engine process
-        is_reuse = self.reuse()
+        is_reuse = False #self.reuse()
         if is_reuse:
             return
         else:
@@ -268,7 +268,8 @@ class RPCRunner(ABC):
         Args:
             process (subprocess.Popen): process to wait for.
         """
-        tryout_time = 180  # 3 minutes
+        tryout_time = 180 * 20 * 5  # 5 hours
+        # tryout_time = 180  # 3 minutes
         tryout_sec = 1
         tryout_num = tryout_time // tryout_sec
 
@@ -583,10 +584,12 @@ class UnrealRPCRunner(RPCRunner):
 
     @staticmethod
     def _get_engine_info(engine_exec: Path) -> Tuple[str, str]:
-        try:
-            _version = re.findall(r'UE_(\d+\.\d+)', engine_exec.as_posix())[0]
-        except IndexError:
-            raise FileNotFoundError(f'Cannot find unreal executable in {engine_exec}')
+        _version = os.environ.get('UNREAL_ENGINE_VERSION')
+        if not _version:
+            try:
+                _version = re.findall(r'UE_(\d+\.\d+)', engine_exec.as_posix())[0]
+            except IndexError:
+                raise FileNotFoundError(f'Cannot find unreal executable in {engine_exec}')
         return 'Unreal', _version
 
     def _get_cmd(
@@ -640,6 +643,8 @@ class UnrealRPCRunner(RPCRunner):
             project_path=project_path,
             rpc_port=self.port,
         )
+        # cmd = "python ./test_simple_rpc.py"
+        print(f'[[_start_rpc]] {cmd=}')
         process = self._popen(cmd)
 
         # TODO: check if process is running
