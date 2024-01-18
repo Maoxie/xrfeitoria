@@ -46,7 +46,8 @@ def main(debug=False, background=False):
     xf_runner.render()
 
     logger.info('🎉 [bold green]Success!')
-    input('Press Any Key to Exit...')
+    if not background:
+        input('Press Any Key to Exit...')
 
     # close the unreal process
     xf_runner.close()

@@ -101,7 +101,7 @@ class RPCRunner(ABC):
                 '`dev_plugin=True` would force `replace_plugin=True`, replacing the plugin with local source code'
             )
         # Try to reuse existing engine process
-        is_reuse = False #self.reuse()
+        is_reuse = self.reuse()
         if is_reuse:
             return
         else:

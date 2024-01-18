@@ -175,8 +175,6 @@ class RPCFactory:
                 # otherwise use the current system path
                 additional_paths = sys.path
 
-            import datetime
-            print(f"[_register][{datetime.datetime.now().isoformat()}] {function.__name__=} {code=} {additional_paths=}")
             response = cls.rpc_client.proxy.add_new_callable(function.__name__, '\n'.join(code), additional_paths)
             cls.registered_function_names.append(function.__name__)
             if os.environ.get('RPC_DEBUG'):

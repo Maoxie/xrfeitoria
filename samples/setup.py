@@ -14,7 +14,7 @@ from xrfeitoria.utils.setup import Config, get_exec_path, guess_exec_path
 from xrfeitoria.utils.tools import Logger
 
 # XXX: Hard-coded assets url
-assets_url = dict(
+ASSETS_URL = dict(
     bunny='https://openxrlab-share.oss-cn-hongkong.aliyuncs.com/xrfeitoria/assets/stanford-bunny.obj',
     koupen_chan='https://openxrlab-share.oss-cn-hongkong.aliyuncs.com/xrfeitoria/assets/koupen_chan.fbx',
     SMPL_XL='https://openxrlab-share.oss-cn-hongkong.aliyuncs.com/xrfeitoria/assets/SMPL-XL-001.fbx',
@@ -24,10 +24,34 @@ assets_url = dict(
     hdr_sample='https://openxrlab-share.oss-cn-hongkong.aliyuncs.com/xrfeitoria/assets/hdr-sample.hdr',
 )
 # XXX: hard-coded unreal project url
-unreal_sample_url = (
+UNREAL_SAMPLE_URL = (
     'https://openxrlab-share.oss-cn-hongkong.aliyuncs.com/xrfeitoria/unreal_project/XRFeitoriaUnreal_Sample.zip'
 )
 asset_dir = tmp_dir / 'assets'
+
+
+ENGINE_CHOICES = ['blender', 'unreal']
+
+
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description='Setup the environment for the samples.')
+    parser.add_argument('--engine', type=str, default=None, choices=ENGINE_CHOICES)
+    parser.add_argument('--exec', type=str, default="")
+    parser.add_argument('--unreal_project', type=str, default="")
+    parser.add_argument('--unattended', action='store_true', default=False)
+    return parser.parse_args()
+
+
+def get_engine() -> str:
+    default = ENGINE_CHOICES[0]
+    args = parse_arguments()
+    if args.engine:
+        engine = args.engine
+    elif args.unattended:
+        engine = default
+    else:
+        engine = Prompt.ask('Which engine do you want to use?', choices=ENGINE_CHOICES, default=default)
+    return engine
 
 
 def get_exec(engine: Literal['blender', 'unreal'], exec_from_config: Optional[Path] = None) -> str:
@@ -57,8 +81,12 @@ def get_exec(engine: Literal['blender', 'unreal'], exec_from_config: Optional[Pa
                 if engine == 'blender':
                     txt += ', or press [bold]enter[/bold] to install it'
 
-        # ask
-        path = Prompt.ask(txt, default=engine_path)
+        # ask or use default
+        if args.unattended:
+            path = engine_path
+        else:
+            path = Prompt.ask(txt, default=engine_path)
+
         if path is not None:
             path = Path(path.strip('"').strip("'")).resolve()
         else:
@@ -73,17 +101,23 @@ def get_exec(engine: Literal['blender', 'unreal'], exec_from_config: Optional[Pa
 
 def get_unreal_project(unreal_project: str) -> str:
     """Ask for unreal project path."""
-    txt = 'Please input the path to the unreal project'
+    
     args = parse_arguments()
     args_unreal_project = args.unreal_project.strip('"').strip("'")
     if args_unreal_project:
         unreal_project = Path(args_unreal_project).resolve().as_posix()
     else:
+        # ask or use default
+        if args.unattended:
+            unreal_project = unreal_project
+        else:
+            txt = 'Please input the path to the unreal project'
+            if unreal_project is None:
+                txt += ', or press [bold]enter[/bold] to download a sample project\n' '\[Enter]'
+            unreal_project = Prompt.ask(txt, default=unreal_project)
+
         if unreal_project is None:
-            txt += ', or press [bold]enter[/bold] to download a sample project\n' '\[Enter]'
-        unreal_project = Prompt.ask(txt, default=unreal_project)
-        if unreal_project is None:
-            unreal_project_zip = download(url=unreal_sample_url, dst_dir=tmp_dir / 'unreal_project')
+            unreal_project_zip = download(url=UNREAL_SAMPLE_URL, dst_dir=tmp_dir / 'unreal_project')
             shutil.unpack_archive(filename=unreal_project_zip, extract_dir=tmp_dir / 'unreal_project')
             unreal_project_dir = unreal_project_zip.parent / unreal_project_zip.stem
             unreal_project = next(unreal_project_dir.glob('*.uproject')).as_posix()
@@ -100,14 +134,6 @@ def get_unreal_project(unreal_project: str) -> str:
     return unreal_project
 
 
-def parse_arguments():
-    parser = argparse.ArgumentParser(description='Setup the environment for the samples.')
-    parser.add_argument('--engine', type=str, default=None, choices=['blender', 'unreal'])
-    parser.add_argument('--exec', type=str, default="")
-    parser.add_argument('--unreal_project', type=str, default="")
-    return parser.parse_args()
-
-
 def main():
     try:
         from .config import blender_exec, unreal_exec, unreal_project
@@ -115,8 +141,7 @@ def main():
         blender_exec = unreal_exec = unreal_project = None
 
     Logger.setup_logging()
-    args = parse_arguments()
-    engine = args.engine if args.engine else Prompt.ask('Which engine do you want to use?', choices=['blender', 'unreal'], default='blender')
+    engine = get_engine()
     if engine == 'blender':
         blender_exec = get_exec('blender', exec_from_config=blender_exec)
         Config.update(engine=engine, exec_path=blender_exec)
@@ -126,8 +151,8 @@ def main():
         Config.update(engine=engine, exec_path=unreal_exec)
 
     assets_path = {}
-    for idx, (name, url) in enumerate(assets_url.items()):
-        logger.info(f'Downloading {idx+1}/{len(assets_url)}: {name}')
+    for idx, (name, url) in enumerate(ASSETS_URL.items()):
+        logger.info(f'Downloading {idx+1}/{len(ASSETS_URL)}: {name}')
         save_path = download(url, dst_dir=asset_dir / name)
         # save the path
         assets_path[name] = save_path.as_posix()
