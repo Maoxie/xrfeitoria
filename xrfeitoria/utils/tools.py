@@ -82,7 +82,8 @@ class Logger:
             return logger
 
         logger.remove()  # remove default logger
-        logger.add(sink=lambda msg: rprint(msg, end=''), level=level, format=cls.logger_format)
+        # logger.add(sink=lambda msg: rprint(msg, end=''), level=level, format=cls.logger_format)
+        logger.add(sink=lambda msg: print(msg.encode("utf-8"), end=''), level=level, format=cls.logger_format)
         # logger.add(RichHandler(level=level, rich_tracebacks=True, markup=True), level=level, format='{message}')
         if log_path:
             # add file logger
